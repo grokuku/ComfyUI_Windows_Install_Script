@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 :: ============================================================================
 :: ComfyUI-Launcher Script
-:: Version: 3.6 (Simplified Dependencies)
+:: Version: 3.8 (Minimalist Menu)
 :: Author: Holaf + Gemini
 :: ============================================================================
 :: This script automates the setup and execution of ComfyUI.
@@ -62,7 +62,6 @@ if not exist "%PARAMS_FILE%" (
     echo [SETUP] First launch detected: Creating default 'parameters.txt' file...
     (
         echo # Web + Network
-        echo --listen
         echo --port 9000
         echo.
         echo # Directories
@@ -79,23 +78,12 @@ echo ===========================================================================
 echo   ComfyUI Portable Launcher
 echo ============================================================================
 echo.
-echo   Author: Holaf + Gemini
-echo.
-echo ============================================================================
-echo.
 echo   Please choose an option:
 echo.
 echo      [1] Run ComfyUI
-echo          "(Installs if not present, then launches)"
-echo.
 echo      [2] Update + Run ComfyUI
-echo          "(Updates ComfyUI and Manager, then launches)"
-echo.
 echo      [3] Repair + Run ComfyUI
-echo          "(Rebuilds Python environment, then launches)"
-echo.
 echo      [4] Open Interactive Terminal
-echo          "(For manual operations like 'pip install ...')"
 echo.
 echo ============================================================================
 choice /c 1234 /n /m "Your choice: "
