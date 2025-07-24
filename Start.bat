@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 :: ============================================================================
 :: ComfyUI-Launcher Script
-:: Version: 3.5 (Hardcoded Prompt for Terminal)
+:: Version: 3.6 (Simplified Dependencies)
 :: Author: Holaf + Gemini
 :: ============================================================================
 :: This script automates the setup and execution of ComfyUI.
@@ -204,15 +204,6 @@ if not exist "%COMFYUI_DIR%\custom_nodes\ComfyUI-Manager\.git" (
     if !errorlevel! neq 0 ( echo [ERROR] Failed to clone ComfyUI-Manager. & pause & exit /b 1 )
 ) else (
     if "%NEEDS_INSTALL%" == "0" ( echo [INFO] ComfyUI-Manager found. )
-)
-
-:: --- Check and clone ComfyUI-Holaf-Utilities ---
-if not exist "%COMFYUI_DIR%\custom_nodes\ComfyUI-Holaf-Utilities\.git" (
-    echo [SETUP] ComfyUI-Holaf-Utilities not found. Cloning...
-    "%GIT_EXE%" clone https://github.com/grokuku/ComfyUI-Holaf-Utilities.git "%COMFYUI_DIR%\custom_nodes\ComfyUI-Holaf-Utilities"
-    if !errorlevel! neq 0 ( echo [ERROR] Failed to clone ComfyUI-Holaf-Utilities. & pause & exit /b 1 )
-) else (
-    if "%NEEDS_INSTALL%" == "0" ( echo [INFO] ComfyUI-Holaf-Utilities found. )
 )
 goto :install_dependencies
 
