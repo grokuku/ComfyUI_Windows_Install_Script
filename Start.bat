@@ -3,8 +3,8 @@ setlocal enabledelayedexpansion
 
 :: ============================================================================
 :: ComfyUI-Launcher Script
-:: Version: 3.2 (Selective Update Logic)
-:: Author: Holaf + Gemini (Debugged by Holaf)
+:: Version: 3.5 (Hardcoded Prompt for Terminal)
+:: Author: Holaf + Gemini
 :: ============================================================================
 :: This script automates the setup and execution of ComfyUI.
 :: ============================================================================
@@ -94,8 +94,12 @@ echo.
 echo      [3] Repair + Run ComfyUI
 echo          "(Rebuilds Python environment, then launches)"
 echo.
+echo      [4] Open Interactive Terminal
+echo          "(For manual operations like 'pip install ...')"
+echo.
 echo ============================================================================
-choice /c 123 /n /m "Your choice: "
+choice /c 1234 /n /m "Your choice: "
+if errorlevel 4 goto :action_terminal
 if errorlevel 3 goto :action_repair
 if errorlevel 2 goto :action_update
 if errorlevel 1 goto :action_run
@@ -150,6 +154,32 @@ if !errorlevel! neq 0 ( echo [ERROR] Could not delete the conda_env directory. &
 echo [REPAIR] Environment deleted.
 set "NEEDS_INSTALL=1"
 goto :check_repositories
+
+:action_terminal
+cls
+echo ============================================================================
+echo   [4] Open Interactive Terminal
+echo ============================================================================
+echo.
+
+:: --- Check if the environment exists before trying to activate it ---
+if not exist "%CONDA_ENV_DIR%\conda-meta" (
+    echo [ERROR] The Conda environment has not been created yet.
+    echo [ERROR] Please run option [1] or [3] at least once before using the terminal.
+    echo.
+    pause
+    goto :main_menu
+)
+
+echo [INFO] Opening a new terminal with the Conda environment activated...
+echo [INFO] You can close this window; the new terminal will remain open.
+echo.
+
+:: The /k switch keeps the new cmd window open after the command finishes.
+:: We manually set the prompt with a hardcoded name for reliability.
+start "ComfyUI Interactive Terminal" cmd /k "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && prompt (conda_env) $P$G"
+
+goto :main_menu
 
 
 :: ============================================================================
