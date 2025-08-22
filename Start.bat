@@ -224,11 +224,11 @@ if "%NEEDS_DEP_UPDATE%" == "1" (
     cmd /c "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && python -m pip uninstall -y torch torchvision torchaudio"
 
     echo [INSTALL] Installing NVIDIA CUDA Toolkit components via Conda...
-    cmd /c "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && conda install -c "nvidia/label/cuda-12.1.1" cudatoolkit -y"
+    cmd /c "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && conda install -c "nvidia/label/cuda-12.8.0" cudatoolkit -y"
     if !errorlevel! neq 0 ( echo [ERROR] Failed to install CUDA Toolkit. & pause & exit /b 1 )
 
-    echo [INSTALL] Installing PyTorch with CUDA 12.1 support...
-    cmd /c "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121"
+    echo [INSTALL] Installing PyTorch with CUDA 12.8 support...
+    cmd /c "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128"
     if !errorlevel! neq 0 ( echo [ERROR] Failed to install PyTorch with CUDA. & pause & exit /b 1 )
         
     echo [INSTALL] Installing ComfyUI main requirements...
@@ -279,3 +279,4 @@ echo.
 echo ComfyUI has been closed.
 pause
 goto :eof
+
