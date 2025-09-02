@@ -3,11 +3,90 @@ setlocal enabledelayedexpansion
 
 :: ============================================================================
 :: ComfyUI-Launcher Script
-:: Version: 3.8 (Minimalist Menu)
+:: Version: 6.2 (Fix premature exit)
 :: Author: Holaf + Gemini
 :: ============================================================================
 :: This script automates the setup and execution of ComfyUI.
 :: ============================================================================
+
+:: ============================================================================
+:: --- Phase -1: System Detection ---
+:: ============================================================================
+echo [INFO] Detecting system hardware...
+
+set "CPU_NAME=N/A"
+set "GPU_NAME=N/A"
+set "TOTAL_RAM_GB=N/A"
+set "GPU_VRAM_GB=N/A"
+set "SAGE_SUPPORT=false"
+set "SAGE_STATUS=Disabled (No compatible NVIDIA GPU detected)"
+
+:: --- CPU Detection (wmic) ---
+echo|set /p="[INFO] CPU detection... "
+set "start_time=%TIME%"
+for /f "tokens=1,* delims==" %%a in ('wmic cpu get name /value 2^>nul') do (
+    if "%%a"=="Name" set "CPU_NAME=%%b"
+)
+if defined CPU_NAME for /f "tokens=*" %%i in ("%CPU_NAME%") do set "CPU_NAME=%%i"
+call :get_elapsed_time
+echo Done (!elapsed_ms! ms)
+
+:: --- RAM Detection (wmic + PowerShell for 64-bit calculation) ---
+echo|set /p="[INFO] RAM detection... "
+set "start_time=%TIME%"
+set "ram_bytes="
+for /f "tokens=1,* delims==" %%a in ('wmic computersystem get totalphysicalmemory /value 2^>nul') do (
+    if "%%a"=="TotalPhysicalMemory" set "ram_bytes=%%b"
+)
+if defined ram_bytes (
+    for /f "usebackq" %%i in (`powershell -Command "[math]::Round(!ram_bytes! / 1GB)"`) do (
+        set "TOTAL_RAM_GB=%%i GB"
+    )
+)
+call :get_elapsed_time
+echo Done (!elapsed_ms! ms)
+
+:: --- GPU Detection (nvidia-smi preferred, wmic as fallback) ---
+echo|set /p="[INFO] GPU detection... "
+set "start_time=%TIME%"
+where nvidia-smi >nul 2>&1
+if !errorlevel! equ 0 (
+    :: Method 1: Use nvidia-smi for precise info, including Compute Capability
+    for /f "usebackq tokens=1,2,3 delims=," %%a in (`"nvidia-smi --query-gpu=gpu_name,memory.total,compute_cap --format=csv,noheader,nounits"`) do (
+        set "GPU_NAME=%%a"
+        set "vram_mb=%%b"
+        set "compute_cap=%%c"
+        
+        set /a "vram_gb=vram_mb / 1024"
+        set "GPU_VRAM_GB=!vram_gb! GB"
+        
+        :: Check for SageAttention compatibility based on Compute Capability >= 8.0
+        for /f "tokens=1 delims=." %%d in ("!compute_cap!") do set "compute_major=%%d"
+        
+        if !compute_major! geq 8 (
+            set "SAGE_SUPPORT=true"
+            set "SAGE_STATUS=Enabled (Compute Capability !compute_cap! >= 8.0)"
+        ) else (
+            set "SAGE_STATUS=Disabled (Compute Capability !compute_cap! < 8.0)"
+        )
+    )
+) else (
+    :: Method 2: Fallback to wmic for non-NVIDIA or driverless systems
+    for /f "tokens=1,* delims==" %%a in ('wmic path win32_videocontroller get name,adapterram /value 2^>nul') do (
+        if "%%a"=="AdapterRAM" (
+            set "vram_bytes=%%b"
+            if defined vram_bytes for /f "usebackq" %%i in (`powershell -Command "[math]::Round(!vram_bytes! / 1GB)"`) do (
+                set "GPU_VRAM_GB=%%i GB"
+            )
+        )
+        if "%%a"=="Name" set "GPU_NAME=%%b"
+    )
+)
+if defined GPU_NAME for /f "tokens=*" %%i in ("%GPU_NAME%") do set "GPU_NAME=%%i"
+call :get_elapsed_time
+echo Done (!elapsed_ms! ms)
+echo.
+
 
 :: --- Configuration: Directory Structure ---
 set "TOOLS_DIR=%~dp0tools"
@@ -16,6 +95,7 @@ set "CONDA_ENV_DIR=%~dp0conda_env"
 set "PARAMS_FILE=%~dp0parameters.txt"
 set "GIT_INSTALL_DIR=%~dp0tools\git"
 set "CONDA_DIR=%~dp0tools\miniforge"
+set "SAGE_ATTENTION_DIR=%TOOLS_DIR%\SageAttention"
 
 :: Set path to the git executable
 set "GIT_EXE=%GIT_INSTALL_DIR%\cmd\git.exe"
@@ -67,6 +147,7 @@ if not exist "%PARAMS_FILE%" (
         echo # Directories
         echo.
         echo # Options
+        echo --windows-standalone-build
     ) > "%PARAMS_FILE%"
     echo [SETUP] 'parameters.txt' created successfully.
     echo.
@@ -74,6 +155,16 @@ if not exist "%PARAMS_FILE%" (
 
 :main_menu
 cls
+echo ============================================================================
+echo   System Information
+echo ============================================================================
+echo.
+echo   CPU: !CPU_NAME!
+echo   RAM: !TOTAL_RAM_GB!
+echo   GPU: !GPU_NAME! (!GPU_VRAM_GB! VRAM)
+echo.
+echo   SageAttention Support: !SAGE_STATUS!
+echo.
 echo ============================================================================
 echo   ComfyUI Portable Launcher
 echo ============================================================================
@@ -85,8 +176,11 @@ echo      [2] Update + Run ComfyUI
 echo      [3] Repair + Run ComfyUI
 echo      [4] Open Interactive Terminal
 echo.
+echo      [5] Quit
+echo.
 echo ============================================================================
-choice /c 1234 /n /m "Your choice: "
+choice /c 12345 /n /m "Your choice: "
+if errorlevel 5 goto :eof
 if errorlevel 4 goto :action_terminal
 if errorlevel 3 goto :action_repair
 if errorlevel 2 goto :action_update
@@ -204,8 +298,8 @@ if "%NEEDS_INSTALL%" == "1" (
     echo.
     set "NEEDS_DEP_UPDATE=1"
     
-    echo [INSTALL] Creating Conda environment...
-    cmd /c "call "%ACTIVATE_BAT%" && conda create -p "%CONDA_ENV_DIR%" -c conda-forge python=3.11 -y"
+    echo [INSTALL] Creating Conda environment with Python 3.12...
+    cmd /c "call "%ACTIVATE_BAT%" && conda create -p "%CONDA_ENV_DIR%" -c conda-forge python=3.12 -y"
     
     :: Robust check for success, as conda create can have a strange errorlevel.
     if not exist "%CONDA_ENV_DIR%\conda-meta" ( 
@@ -230,6 +324,22 @@ if "%NEEDS_DEP_UPDATE%" == "1" (
     echo [INSTALL] Installing PyTorch with CUDA 12.8 support...
     cmd /c "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128"
     if !errorlevel! neq 0 ( echo [ERROR] Failed to install PyTorch with CUDA. & pause & exit /b 1 )
+    
+    echo [INSTALL] Installing Triton for Windows...
+    cmd /c "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && python -m pip install triton-windows"
+    if !errorlevel! neq 0 ( echo [ERROR] Failed to install Triton. & pause & exit /b 1 )
+    
+    if "%SAGE_SUPPORT%" == "true" (
+        echo [INSTALL] Preparing SageAttention...
+        if not exist "%SAGE_ATTENTION_DIR%\.git" (
+            echo [INSTALL] Cloning SageAttention repository...
+            "%GIT_EXE%" clone https://github.com/thu-ml/SageAttention.git "%SAGE_ATTENTION_DIR%"
+            if !errorlevel! neq 0 ( echo [ERROR] Failed to clone SageAttention. & pause & exit /b 1 )
+        )
+        echo [INSTALL] Installing SageAttention...
+        cmd /c "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && python -m pip install "%SAGE_ATTENTION_DIR%""
+        if !errorlevel! neq 0 ( echo [WARNING] Failed to install SageAttention. This might not be critical. & pause )
+    )
         
     echo [INSTALL] Installing ComfyUI main requirements...
     cmd /c "call "%ACTIVATE_BAT%" && conda activate "%CONDA_ENV_DIR%" && python -m pip install -r "%COMFYUI_DIR%\requirements.txt""
@@ -280,3 +390,15 @@ echo ComfyUI has been closed.
 pause
 goto :eof
 
+:: ============================================================================
+:: --- Utility Functions ---
+:: ============================================================================
+
+:get_elapsed_time
+:: Calculates the time difference between %start_time% and the current time.
+:: Result is stored in %elapsed_ms%.
+set "end_time=%TIME%"
+for /f "tokens=1-4 delims=:," %%a in ("%start_time%") do set /a "start_ms=(1%%a*360000)+(1%%b*6000)+(1%%c*100)+1%%d-36006100"
+for /f "tokens=1-4 delims=:," %%a in ("%end_time%") do set /a "end_ms=(1%%a*360000)+(1%%b*6000)+(1%%c*100)+1%%d-36006100"
+set /a "elapsed_ms=end_ms-start_ms"
+goto :eof
